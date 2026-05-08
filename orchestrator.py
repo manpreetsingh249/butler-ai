@@ -25,14 +25,14 @@ def analyze(state: ButlerState) -> ButlerState:
     state["needs_teaching"] = any(k in cmd for k in ["teach","explain","how does","what is","learn","understand","show me"])
     return state
 
-def get_memories(state: ButlerState) -> ButlerState:
+def get_mem(state: ButlerState) -> ButlerState:
     try:
         state["memories"] = recall_memory(state["command"], top_k=4)
     except Exception:
         state["memories"] = []
     return state
 
-def do_web_search(state: ButlerState) -> ButlerState:
+def do_web(state: ButlerState) -> ButlerState:
     if state["needs_web"]:
         result = web_search(state["command"])
         state["web_data"] = format_search_results(result)
@@ -40,11 +40,10 @@ def do_web_search(state: ButlerState) -> ButlerState:
         state["web_data"] = ""
     return state
 
-def do_social_search(state: ButlerState) -> ButlerState:
+def do_social(state: ButlerState) -> ButlerState:
     if not state["needs_social"]:
         state["social_data"] = ""
         return state
-    # Extract name from command
     match = re.search(r"(?:find|search for|look up)\s+([A-Za-z0-9_\s]+?)(?:'s|\s+account|\s+profile|$)", state["command"], re.IGNORECASE)
     name = match.group(1).strip() if match else None
     if name:
@@ -64,12 +63,11 @@ def synthesize(state: ButlerState) -> ButlerState:
         context_parts.append(f"Social search:\n{state['social_data']}")
     if state["needs_teaching"]:
         context_parts.append("Teach step by step: WHY → WHAT → HOW → practical example → ask for doubts")
-
     result = get_best_answer(state["command"], "\n\n".join(context_parts))
     state["final_answer"] = result["master"]
     return state
 
-def store_memory(state: ButlerState) -> ButlerState:
+def store_mem(state: ButlerState) -> ButlerState:
     try:
         save_memory(f"Q: {state['command']}\nA: {state['final_answer'][:400]}")
     except Exception:
@@ -79,18 +77,18 @@ def store_memory(state: ButlerState) -> ButlerState:
 def build_butler():
     g = StateGraph(ButlerState)
     g.add_node("analyze",    analyze)
-    g.add_node("memories",   get_memories)
-    g.add_node("web",        do_web_search)
-    g.add_node("social",     do_social_search)
+    g.add_node("get_mem",    get_mem)
+    g.add_node("do_web",     do_web)
+    g.add_node("do_social",  do_social)
     g.add_node("synthesize", synthesize)
-    g.add_node("store",      store_memory)
+    g.add_node("store_mem",  store_mem)
     g.set_entry_point("analyze")
-    g.add_edge("analyze",    "memories")
-    g.add_edge("memories",   "web")
-    g.add_edge("web",        "social")
-    g.add_edge("social",     "synthesize")
-    g.add_edge("synthesize", "store")
-    g.add_edge("store",      END)
+    g.add_edge("analyze",    "get_mem")
+    g.add_edge("get_mem",    "do_web")
+    g.add_edge("do_web",     "do_social")
+    g.add_edge("do_social",  "synthesize")
+    g.add_edge("synthesize", "store_mem")
+    g.add_edge("store_mem",  END)
     return g.compile()
 
 butler = build_butler()
