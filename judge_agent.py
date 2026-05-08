@@ -2,11 +2,9 @@ import google.generativeai as genai
 from groq import Groq
 import config
 
-genai.configure(api_key=config.GEMINI_API_KEY)
-groq_client = Groq(api_key=config.GROQ_API_KEY)
-
 def ask_gemini(prompt: str, system: str = "") -> str:
     try:
+        genai.configure(api_key=config.GEMINI_API_KEY)
         model    = genai.GenerativeModel("gemini-1.5-flash",
                        system_instruction=system or "You are a helpful expert assistant.")
         response = model.generate_content(prompt)
@@ -16,6 +14,7 @@ def ask_gemini(prompt: str, system: str = "") -> str:
 
 def ask_groq(prompt: str, system: str = "") -> str:
     try:
+        groq_client = Groq(api_key=config.GROQ_API_KEY)
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
@@ -30,10 +29,8 @@ def ask_groq(prompt: str, system: str = "") -> str:
 
 def get_best_answer(question: str, context: str = "") -> dict:
     system = f"You are an expert assistant. Be accurate, detailed, and helpful.{chr(10) + 'Context: ' + context if context else ''}"
-
     gemini_ans = ask_gemini(question, system)
     groq_ans   = ask_groq(question, system)
-
     judge_prompt = f"""You are the Judge. Two AIs answered this question. Combine the best parts into ONE perfect answer.
 
 QUESTION: {question}
@@ -43,6 +40,5 @@ AI-A (Gemini): {gemini_ans}
 AI-B (Llama): {groq_ans}
 
 Output only the final best answer, nothing else:"""
-
     master = ask_groq(judge_prompt)
     return {"master": master, "gemini": gemini_ans, "groq": groq_ans}
